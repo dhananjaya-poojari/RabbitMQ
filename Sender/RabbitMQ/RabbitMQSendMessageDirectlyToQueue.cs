@@ -1,34 +1,33 @@
 ﻿using Newtonsoft.Json;
 using RabbitMQ.Client;
-using System;
 using System.Text;
 
-namespace Sender
+namespace Sender.RabbitMQ
 {
     /// <summary>
-    /// This class provides functionality to send messages to a RabbitMQ exchange.
+    /// This class provides functionality to send messages directly to a RabbitMQ queue.
     /// </summary>
-    public class RabbitMQSendMessageToExchange : IRabbitMQSender
+    public class RabbitMQSendMessageDirectlyToQueue : IRabbitMQSender
     {
         /// <summary>
-        /// The name of the exchange to send messages to.
+        /// The name of the queue to send messages to.
         /// </summary>
-        private const string exchangeName = "SampleExchange";
+        private const string queueName = "Sample";
 
         /// <summary>
         /// The hostname of the RabbitMQ server.
         /// </summary>
-        private const string _hostname = "localhost";
+        private readonly string _hostname;
 
         /// <summary>
         /// The username to connect to the RabbitMQ server.
         /// </summary>
-        private const string _username = "guest";
+        private readonly string _username;
 
         /// <summary>
         /// The password to connect to the RabbitMQ server.
         /// </summary>
-        private const string _password = "guest";
+        private readonly string _password;
 
         /// <summary>
         /// The connection to the RabbitMQ server.
@@ -36,14 +35,17 @@ namespace Sender
         private IConnection _connection;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="RabbitMQSendMessageToExchange"/> class.
+        /// Initializes a new instance of the <see cref="RabbitMQSendMessageDirectlyToQueue"/> class.
         /// </summary>
-        public RabbitMQSendMessageToExchange()
+        public RabbitMQSendMessageDirectlyToQueue()
         {
+            _hostname = "localhost";
+            _username = "guest";
+            _password = "guest";
         }
 
         /// <summary>
-        /// Sends a message to the RabbitMQ exchange.
+        /// Sends a message to the RabbitMQ queue.
         /// </summary>
         /// <param name="message">The message to send.</param>
         public void Send(string message)
@@ -54,12 +56,14 @@ namespace Sender
             // Create a new channel, which is the medium for sending messages
             using var channel = _connection.CreateModel();
 
-            // Declare an exchange with the specified name and type. If it doesn't exist, it will be created.
+            // Declare a queue with the specified name. If it doesn't exist, it will be created.
             // Parameters:
-            // exchange: The name of the exchange.
-            // type: The type of the exchange (e.g., fanout).
-            // durable: Whether the exchange should survive a broker restart (false means it won't).
-            channel.ExchangeDeclare(exchangeName, ExchangeType.Fanout, durable: false);
+            // queue: The name of the queue.
+            // durable: Whether the queue should survive a broker restart (false means it won't).
+            // exclusive: Whether the queue is used by only one connection and will be deleted when that connection closes.
+            // autoDelete: Whether the queue should be deleted when there are no more consumers.
+            // arguments: Additional arguments for the queue (null in this case).
+            channel.QueueDeclare(queueName, false, false, false, null);
 
             // Serialize the message to a JSON string.
             var json = JsonConvert.SerializeObject(message);
@@ -67,13 +71,13 @@ namespace Sender
             // Convert the JSON string to a byte array, which is the format required by RabbitMQ.
             var body = Encoding.UTF8.GetBytes(json);
 
-            // Publish the message to the specified exchange.
+            // Publish the message to the specified queue.
             // Parameters:
-            // exchange: The exchange to publish the message to.
-            // routingKey: The routing key for the message (empty string in this case because fanout exchanges do not use routing keys).
+            // exchange: The exchange to publish the message to (empty string means the default exchange).
+            // routingKey: The routing key for the message (the name of the queue in this case).
             // basicProperties: Message properties (null in this case, meaning default properties).
             // body: The message body as a byte array.
-            channel.BasicPublish(exchange: exchangeName, routingKey: "", basicProperties: null, body: body);
+            channel.BasicPublish(exchange: "", routingKey: queueName, basicProperties: null, body: body);
         }
 
         /// <summary>
@@ -106,6 +110,7 @@ namespace Sender
                     Console.WriteLine(ex.ToString());
                 }
             }
+
         }
     }
 }
